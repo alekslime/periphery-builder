@@ -1,133 +1,183 @@
-# Periphery OS — Build Debugging Handoff
+# Periphery OS — Build Handoff
 
-**Date:** 2026-08-13
-**Status:** Working ISO exists and is verified bootable. A follow-on hostname/branding fix caused a regression. Rootfs has been reverted to match the known-good ISO. Do not rebuild until the overlay bug (documented below) is properly fixed.
+**Last updated:** 2026-08-14
+**Status:** Working ISO with full KDE Plasma desktop, verified booting to SDDM → Plasma in VirtualBox. Hostname still shows "ubuntu" (cosmetic, deferred). Rootfs snapshot recommended before further changes.
 
 ---
 
 ## Current known-good state
 
-- **Working ISO:** `~/periphery/build/periphery-os-clean.iso`
-  - Boots successfully in VirtualBox with EFI enabled
-  - Reaches `ubuntu login:` prompt, `root` login works
-  - This is the file to use for any testing/demoing right now — do not overwrite it
-- **Rootfs:** `~/periphery/build/rootfs` has been reverted to match this ISO (hostname/casper.conf/initramfs-tools modules edits undone — see "Reverted changes" below)
-- **Do NOT run `sudo ./build.sh`** until the overlay bug below is fixed — the current `build.sh` output will reproduce the broken initrd.
+- **Working rootfs:** `~/periphery/build/rootfs` — debootstrap base + KDE Plasma (`kde-plasma-desktop`) + SDDM, fully installed and verified via `sudo ./build.sh` → boots to SDDM login → Plasma desktop in VirtualBox (EFI enabled).
+- **Build script:** `~/periphery/periphery-builder/build.sh` — single-pass `grub-mkrescue` build, verified working repeatedly across two major milestones (base EFI/GRUB boot, then KDE desktop).
+- **Backup:** `~/periphery/build/rootfs.known-good` — should be refreshed to match current KDE-installed state (see Immediate Next Steps below; this was last snapshotted *before* KDE was installed).
+- Login currently shows `ubuntu login:` / SDDM as "ubuntu" — hostname fix is a known, deferred cosmetic item (see "Deferred: hostname branding" below).
 
 ---
 
-## What was accomplished this session
+## Milestone 1 (earlier session): EFI/GRUB boot bug — RESOLVED
 
-### 1. Fixed a real, previously-blocking EFI/GRUB boot bug
-
-**Symptom:** ISO booted fine via BIOS but hung at `grub rescue>` under UEFI with:
+**Symptom:** ISO booted via BIOS but hung at `grub rescue>` under UEFI:
 ```
 error: file '/boot/grub/x86_64-efi/normal.mod' not found.
 ```
-despite `xorriso -ls` proving the file was physically present in the ISO.
+despite `xorriso -ls` proving the file existed in the image.
 
-**Root cause:** The ISO had been hand-assembled across multiple separate manual `xorriso` invocations over time (evidence: multiple stale ISOs in `build/` — `periphery-os.iso`, `-v2`, `-v3`; staging dir `build/iso/boot/grub/` was missing `x86_64-efi/` entirely; the EFI module tree that *was* in the final ISO didn't come from the staging dir at all). Full-featured readers (`xorriso`, `isoinfo -R`) resolved the directory tree fine; GRUB's own minimal `iso9660` reader — which expects a single, coherent, non-appended-to layout — silently dropped the `x86_64-efi/` directory entry.
+**Root cause:** The ISO had been hand-assembled across multiple separate manual `xorriso` invocations over time (evidence: multiple stale ISOs in `build/`, staging dir missing `x86_64-efi/` entirely, the working EFI module tree didn't come from staging). Full readers (`xorriso`, `isoinfo -R`) resolved the directory tree fine; GRUB's own minimal `iso9660` reader — which expects a single, coherent, non-appended-to layout — silently dropped the `x86_64-efi/` directory entry.
 
-**Fix applied:**
-1. Installed `grub-efi-amd64-bin grub-efi-amd64-signed shim-signed grub-pc-bin grub-common xorriso mtools` inside the rootfs (via `systemd-nspawn`)
-2. Wiped the stale `build/iso/boot/grub/`, `build/iso/EFI/`, `build/iso/efi.img`
-3. Copied fresh GRUB module trees directly from the rootfs's own installed packages:
+**Fix:** Wipe stale staging, copy fresh GRUB module trees directly from the rootfs's installed packages, write clean `grub.cfg`, build the ISO in **one single `grub-mkrescue` pass**. Never append to or patch an existing `.iso`.
+
+This became the core logic of `build.sh` (see below).
+
+---
+
+## build.sh — what it does
+
+Located at `~/periphery/periphery-builder/build.sh`. Committed and pushed to GitHub.
+
+1. Verifies required GRUB packages installed in rootfs (checks `var/lib/dpkg/status` directly — chroot+dpkg is unreliable without `/proc`/`/sys` mounted)
+2. Verifies casper payload (`vmlinuz`, `initrd`, `filesystem.squashfs`) exists in `build/iso/casper/`
+3. Wipes and repopulates `boot/grub/` fresh from the rootfs every run — never patches stale state
+4. Writes `grub.cfg`
+5. Runs single-pass `grub-mkrescue -o periphery-os.iso build/iso -- -volid PERIPHERYOS`
+6. Verifies `normal.mod` present in output as a sanity check
+
+**Known gotcha (already fixed in script):** paths default to `$HOME/...`, which breaks under `sudo` (`$HOME` becomes `/root`). Script hardcodes `/home/aleks/periphery/build/...`. If this ever moves to a different user/machine, revisit via `SUDO_USER` lookup.
+
+**Usage after any rootfs change:**
+```sh
+# 1. Regenerate initrd (only if kernel modules/boot-time behavior changed)
+sudo systemd-nspawn -D ~/periphery/build/rootfs --bind-ro=/etc/resolv.conf
+update-initramfs -c -k all
+exit
+cp ~/periphery/build/rootfs/boot/initrd.img-* ~/periphery/build/iso/casper/initrd
+
+# 2. Regenerate squashfs (always, if rootfs contents changed)
+sudo rm ~/periphery/build/iso/casper/filesystem.squashfs
+sudo mksquashfs ~/periphery/build/rootfs ~/periphery/build/iso/casper/filesystem.squashfs -comp xz -noappend
+
+# 3. Rebuild ISO
+cd ~/periphery/periphery-builder
+sudo ./build.sh
+```
+
+---
+
+## Milestone 2 (this session): KDE Plasma Desktop — RESOLVED
+
+**Goal:** Give Periphery OS a real desktop environment.
+
+**Decision:** `kde-plasma-desktop` (not `kubuntu-desktop`). Rationale: Periphery is a deliberate-practice CS/CE learning environment, not a general-purpose distro — `kubuntu-desktop` pulls in the full consumer app suite (Kontact, games, media apps) that add build time/image size without pedagogical value. `kde-plasma-desktop` gives the Plasma shell, System Settings, Konsole, Dolphin, Kate — the working surface students need. Additional tools should be added deliberately later, not as part of a mystery-meat bundle.
+
+**Login manager:** SDDM (login screen shown, no auto-login — deliberate choice for a learning environment where multiple users may share a machine).
+
+### Steps taken
+
+1. **Enabled `universe`/`multiverse`/`restricted` repos** — debootstrap only enables `main` by default; KDE packages live in `universe`. Rewrote `/etc/apt/sources.list` inside rootfs to include all four components across `resolute`, `resolute-updates`, `resolute-security`.
+
+2. **Installed packages** (inside `systemd-nspawn`):
    ```
-   cp -r rootfs/usr/lib/grub/x86_64-efi build/iso/boot/grub/
-   cp -r rootfs/usr/lib/grub/i386-pc build/iso/boot/grub/
+   apt update
+   apt install -y kde-plasma-desktop sddm
    ```
-4. Wrote a clean `grub.cfg` pointing at casper's `vmlinuz`/`initrd`
-5. Built the ISO in **one single `grub-mkrescue` pass** — never appending to or patching an existing `.iso` again
+   This pulled ~1124 packages, ~748MB download. No blocking interactive prompts encountered this run. Some `nspawn`-related warnings during postinst (`System has not been booted with systemd as init system... Can't operate`, dbus "reload" failures) are **expected and harmless** — these are postinst hooks trying to reach a running systemd/dbus that doesn't exist in a non-`--boot` nspawn session. They resolve correctly once casper boots the ISO for real with systemd as PID 1.
 
-This produced `periphery-os-clean.iso`, verified to boot all the way to a root shell in VirtualBox (screenshot evidence: `root@ubuntu:~#` prompt, kernel `7.0.0-14-generic`).
+3. **Regenerated initrd and squashfs** (see "build.sh — what it does" above for the exact commands), then ran `sudo ./build.sh`.
 
-### 2. Automated the fix into `build.sh`
+4. **Booted in VirtualBox** — confirmed SDDM login screen appears, login succeeds, full KDE Plasma desktop loads.
 
-Created `~/periphery/periphery-builder/build.sh`, committed and pushed to GitHub. It:
-- Verifies required GRUB packages are installed in the rootfs (checks `var/lib/dpkg/status` directly rather than chroot+dpkg, which is unreliable without `/proc`/`/sys` mounted)
-- Verifies casper payload (`vmlinuz`, `initrd`, `filesystem.squashfs`) exists
-- Wipes and repopulates `boot/grub/` fresh from the rootfs every run (never patches stale state)
-- Writes `grub.cfg`
-- Runs a single-pass `grub-mkrescue`
-- Verifies `normal.mod` is present in the output as a sanity check
+**Verified working, not yet spot-checked:** individual apps (Konsole, Dolphin, System Settings) — should be confirmed open cleanly, since these are the first tools students will touch.
 
-**Known gotcha already fixed in the script:** paths default to `$HOME/...`, which breaks under `sudo` (`$HOME` becomes `/root`). Script now hardcodes `/home/aleks/periphery/build/...` as defaults. If this ever moves to a different user/machine, that needs revisiting (accept a real user's home via `SUDO_USER` lookup would be the clean fix, not yet done).
+---
 
-`README.md` in `periphery-builder` was updated with a "Build automation — v1 (validated)" section documenting the bug and the fix. This is committed and pushed.
+## Deferred: hostname branding (`ubuntu` → `periphery`)
 
-### 3. Attempted hostname/branding fix — caused a regression (unresolved)
+**Not resolved. Deliberately deferred, do not restart this work until re-reading this section.**
 
-**Goal:** login prompt currently says `ubuntu login:` — should say `periphery login:`.
+### What was tried (earlier session, before KDE work)
 
-**What was tried, in order:**
-1. Set `/etc/hostname` and `/etc/hosts` in the rootfs directly → had no effect on the live boot, because...
-2. Discovered `/usr/share/initramfs-tools/scripts/casper-bottom/18hostname` overwrites `/etc/hostname`/`/etc/hosts` at every live boot using a `$HOST` shell variable, sourced from `/etc/casper.conf`
-3. Edited `/etc/casper.conf`: set `USERNAME`, `HOST`, `BUILD_SYSTEM` to `periphery`, and critically set `FLAVOUR="Periphery"` (the file's own comment warns that `HOST`/`USERNAME` are ignored and replaced by an auto-detected "flavour string" unless `FLAVOUR` is explicitly set to a non-empty value)
-4. Regenerated `filesystem.squashfs` (`mksquashfs ... -comp xz -noappend`, matching the original build's compression flag found in `.bash_history` — an earlier squashfs regen accidentally used default gzip + `-e boot`, which was corrected)
-5. Still showed `ubuntu` after rebuild — realized `/etc/casper.conf` changes only take effect if baked into `casper/initrd`, not just the squashfs, because casper-bottom scripts execute from inside the initrd *before* the squashfs is even mounted
-6. Regenerated the initrd (`update-initramfs -c -k all` inside the rootfs, copied to `casper/initrd`) — **this broke boot entirely**, producing:
+1. Editing `/etc/hostname` / `/etc/hosts` directly in rootfs → **no effect on live boot**, because...
+2. `/usr/share/initramfs-tools/scripts/casper-bottom/18hostname` overwrites both files at every live boot using a `$HOST` variable sourced from `/etc/casper.conf`
+3. Edited `/etc/casper.conf`: set `USERNAME`, `HOST`, `BUILD_SYSTEM` to `periphery`, and set `FLAVOUR="Periphery"` (the file's own comment warns `HOST`/`USERNAME` are ignored and replaced by an auto-detected "flavour string" unless `FLAVOUR` is explicitly non-empty)
+4. Regenerated squashfs — still showed `ubuntu`, because `/etc/casper.conf` only takes effect if baked into `casper/initrd` (casper-bottom scripts run from inside the initrd, before the squashfs is even mounted)
+5. Regenerated initrd — **this broke boot entirely**:
    ```
    (initramfs) /cow format specified as 'overlay' and no support found
    ```
 
-### 4. Diagnosed (but did not cleanly fix) the overlay regression
+### Root cause of the boot break, as far as it was diagnosed
 
-Root cause isolated precisely, live, in the busybox initramfs shell:
-
-- `overlay.ko.zst` module **is** present and correctly indexed in `modules.dep`
-- Plain `modprobe overlay` and `modprobe -b overlay` **succeed** (`exit 0`)
-- Casper's actual call in `/usr/share/initramfs-tools/scripts/casper` line 585 is:
-  ```sh
-  modprobe "${MP_QUIET}" -b overlay || panic "/cow format specified as 'overlay' and no support found"
-  ```
-  When `MP_QUIET` is unset, this expands to `modprobe "" -b overlay` — and **this specific empty-string-first-argument form fails** (`exit 1`), even though the equivalent call without the empty arg succeeds. This was reproduced live and confirmed repeatedly.
-- A fix was attempted: `sed`-patching the script to remove the empty `${MP_QUIET}` argument, then regenerating the initrd. **This did not resolve the boot failure** — the same overlay error recurred after rebuild. This is the last thing that was tried before reverting; the patch's effect was not fully verified (no confirmation the patched initrd was correctly regenerated/picked up, and no `dmesg`/verbose modprobe output was successfully captured during the failing boot to confirm the exact failure point post-patch).
-
-**This bug is unresolved.** Suspects not yet ruled out:
-- The `sed` patch may not have matched (never confirmed the `grep` verifying the patch landed, before things escalated)
-- `update-initramfs -c -k 7.0.0-14-generic` inside `systemd-nspawn` uses the **host's** running kernel context for some tooling even when targeting a different kernel version's module tree — worth checking if `depmod`/`update-initramfs` behavior differs meaningfully from a "true" target-only build environment
-- Possible kmod version behavior change (newer kmod not tolerating an empty positional arg the way older versions/busybox modprobe might) — worth checking `apt policy kmod` inside the rootfs and whether a different kmod version resolves it
-- Worth testing casper's script call in isolation with `set -x` tracing rather than piecemeal manual reproduction
-
-### 5. Reverted to known-good state
-
-To stop active damage and preserve a working demo, the rootfs was reverted:
+Isolated live in the busybox initramfs shell: casper's actual call in `scripts/casper` (~line 585) is:
 ```sh
-echo "ubuntu" > /etc/hostname
-sed -i 's/periphery/ubuntu/' /etc/hosts
-cat > /etc/casper.conf << 'EOF'
-export USERNAME="ubuntu"
-export USERFULLNAME="Live session user"
-export HOST="ubuntu"
-export BUILD_SYSTEM="Ubuntu"
-EOF
-sed -i '/^overlay$/d' /etc/initramfs-tools/modules
+modprobe "${MP_QUIET}" -b overlay || panic "..."
 ```
-The `scripts/casper` empty-arg patch (`sed 's/modprobe "\${MP_QUIET}" -b overlay/modprobe -b overlay/'`) was **left in place** — it's a plausible-looking bug fix even though it didn't resolve the observed regression on its own, and it shouldn't cause harm.
+When `MP_QUIET` is unset this becomes `modprobe "" -b overlay` — and **this exact empty-string-first-argument form fails** (confirmed reproducible: `exit 1`), even though `modprobe -b overlay` (no empty arg) succeeds, and even though the `overlay.ko.zst` module is correctly present and indexed in `modules.dep`. This looks like a kmod behavior quirk with empty positional args, not a missing-module problem.
 
-**Important:** the rootfs's `/boot/initrd.img-7.0.0-14-generic` was regenerated multiple times during this session and was NOT explicitly regenerated again after the revert above. Before trusting the rootfs to produce a working ISO again, **regenerate the initrd once more** post-revert and diff/test carefully, or — simpler — just keep using `periphery-os-clean.iso` as-is until the overlay bug is root-caused properly.
+A `sed` patch removing the empty `${MP_QUIET}` arg from `scripts/casper` was attempted but **did not resolve the failure on rebuild** — the patch's effect was never fully verified (no confirmation the `grep` check on the patched line was run before things moved on, and no `dmesg`/verbose modprobe output was captured from a rebuilt+re-tested initrd).
+
+### What was done to stop the bleeding
+
+Reverted rootfs's `/etc/hostname`, `/etc/hosts`, `/etc/casper.conf`, and `/etc/initramfs-tools/modules` back to original `ubuntu` state. The `scripts/casper` empty-arg sed patch was **left in place** (harmless, plausible fix, just unconfirmed).
+
+### Why this is now lower priority
+
+Since the hostname regression, the project pivoted to installing KDE Plasma (Milestone 2 above), which required its own initrd/squashfs regen cycles and **succeeded cleanly** — meaning the current `rootfs`'s initrd, as of this session, boots fine with a full desktop. This suggests the casper-conf/hostname changes specifically (not general initrd regen) were what triggered the overlay bug — but this has not been re-tested since KDE was added, and the two initrd regens happened under different conditions, so treat this as a hypothesis, not a confirmed fact.
+
+### Recommended approach when resuming this work
+
+1. **Snapshot the current KDE-working rootfs first** (see Immediate Next Steps).
+2. Redo the `/etc/casper.conf` edit (`USERNAME`, `HOST`, `BUILD_SYSTEM`, `FLAVOUR` all set to `periphery`/`Periphery`) on a copy, not the live rootfs.
+3. Regenerate initrd, test boot **before** touching squashfs, so failures are cheap to diagnose and revert.
+4. If the overlay bug recurs, this time capture:
+   - `dmesg` output at the exact failure point (never successfully captured before)
+   - `sh -x` trace through casper's `setup_overlay()` function
+   - `apt policy kmod` version, to check for a known kmod regression around empty positional args
+5. Only touch `scripts/casper` directly as a last resort — patching a stock package script by hand is fragile across future `casper` package upgrades.
 
 ---
 
-## Recommended next steps (in priority order)
+## Future milestone: major/degree selector (design intent, not started)
 
-1. **Don't touch the rootfs/initrd casually again.** Before any further changes, `cp -r` the current working `rootfs` to a `rootfs.known-good` backup, and/or keep `periphery-os-clean.iso` untouched as a fallback artifact. This whole regression happened because there was no backup/snapshot to fall back to.
-2. **Properly root-cause the `modprobe "" -b overlay` failure** before re-attempting the hostname fix:
-   - Get `dmesg` output at the exact moment of failure (was requested but never captured)
-   - Run casper's `setup_overlay()` function with `sh -x` tracing to see real-time variable expansion
-   - Check `apt policy kmod` version in the rootfs vs. what stock Ubuntu 26.04 live images ship
-3. **Once overlay is fixed and verified**, redo the hostname/casper.conf/FLAVOUR fix (steps are documented above and were directionally correct — the `/etc/casper.conf` + `FLAVOUR="Periphery"` approach is the right mechanism, it just needs a working initrd to test against).
-4. Regenerate `filesystem.manifest` alongside `filesystem.squashfs` — noted as stale during this session but not addressed (didn't block the login-prompt test, but should be fixed before this build is considered clean).
-5. Consider adding rootfs backup/snapshotting to `build.sh` or as a separate `snapshot.sh`, given how much time a single bad initrd regen cost this session.
+**User's stated goal:** at install time or first boot, let the student choose their major/degree (CS, CE, EE, Data Science, etc.), and have Periphery install/configure a curated package set accordingly.
+
+**Key design decision already made:** Periphery is intended to be **installed to disk**, not purely live/USB — persistence is the real target. This means:
+
+- The major-selector wizard belongs on **first login after installation completes**, not in the live session (live sessions don't persist installed packages anyway).
+- Periphery needs an actual installer before this wizard makes sense. **Calamares** is the natural choice (used by Kubuntu and many derivatives, themeable, well-documented) — not yet added to the project.
+
+**Not yet designed:**
+- First-boot detection mechanism (systemd unit / autostart entry that fires once)
+- GUI picker implementation (native Kirigami/Qt widget vs. simpler Zenity/YAD dialog)
+- `major → package list` mapping format (proposed: a data file like `majors.yaml` in `periphery-builder`, not hardcoded, so instructors can extend it)
+- Whether package install happens live via apt at first-boot (needs network + time) or is pre-staged during the ISO/install build
+
+**Sequencing:** KDE (done) → Calamares installer (not started) → first-boot wizard (not started) → majors.yaml content (not started).
+
+---
+
+## Immediate next steps (priority order)
+
+1. **Refresh the rootfs backup** to capture the current KDE-working state:
+   ```sh
+   sudo rm -rf ~/periphery/build/rootfs.known-good
+   sudo cp -r ~/periphery/build/rootfs ~/periphery/build/rootfs.known-good
+   ```
+   The existing snapshot predates KDE and is now stale as a restore point.
+2. **Spot-check core Plasma apps** — open Konsole, Dolphin, System Settings in the booted VM; confirm no crashes.
+3. **Commit this handoff + confirm README reflects KDE milestone**, push to GitHub.
+4. Resume hostname branding work per the "Recommended approach" above, OR move on to Calamares installer research — user's call on priority.
+5. Regenerate `filesystem.manifest` alongside `filesystem.squashfs` — still noted as stale from an earlier session, never addressed. Doesn't block current boots but should be fixed before considering the build fully clean.
 
 ---
 
 ## Reference: key file locations
 
-- Builder repo (git, pushed to GitHub): `~/periphery/periphery-builder/` (`README.md`, `build.sh`)
+- Builder repo (git, pushed to GitHub): `~/periphery/periphery-builder/` (`README.md`, `build.sh`, `HANDOFF.md`)
 - Rootfs: `~/periphery/build/rootfs/`
+- Rootfs backup (needs refresh): `~/periphery/build/rootfs.known-good/`
 - ISO staging: `~/periphery/build/iso/`
-- Known-good ISO: `~/periphery/build/periphery-os-clean.iso`
+- Current built ISO: `~/periphery/build/periphery-os.iso` (produced by `build.sh`)
+- Earlier known-good ISO (pre-KDE, EFI-fix only): `~/periphery/build/periphery-os-clean.iso`
 - Casper hostname script: `rootfs/usr/share/initramfs-tools/scripts/casper-bottom/18hostname`
 - Casper overlay setup: `rootfs/usr/share/initramfs-tools/scripts/casper` (function `setup_overlay`, ~line 545–585)
 - Casper config: `rootfs/etc/casper.conf`
+- apt sources (now includes universe/multiverse/restricted): `rootfs/etc/apt/sources.list`
