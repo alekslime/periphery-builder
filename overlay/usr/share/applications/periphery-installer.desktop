@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Install Periphery OS
+GenericName=Install Periphery OS
+Comment=Install Periphery OS
+Exec=/usr/bin/calamares-launch-normal
+Icon=system-software-install
+Terminal=false
+Categories=System;Settings;
+Keywords=installer;calamares;system;periphery;
+StartupNotify=true
