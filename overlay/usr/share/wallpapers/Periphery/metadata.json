@@ -1,0 +1,12 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Periphery OS"
+            }
+        ],
+        "Id": "Periphery",
+        "License": "CC-BY-SA-4.0",
+        "Name": "Periphery"
+    }
+}

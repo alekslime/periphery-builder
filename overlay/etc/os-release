@@ -1,0 +1,10 @@
+PRETTY_NAME="Periphery OS v1"
+NAME="Periphery OS"
+VERSION_ID="1"
+VERSION="1 (Resolute Raccoon)"
+VERSION_CODENAME=resolute
+ID=periphery
+ID_LIKE="ubuntu debian"
+BUG_REPORT_URL="https://github.com/alekslime/periphery-builder/issues"
+UBUNTU_CODENAME=resolute
+LOGO=periphery-logo

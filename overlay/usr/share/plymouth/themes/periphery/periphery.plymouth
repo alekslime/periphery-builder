@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Periphery
+Description=Periphery OS boot splash
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/periphery
+ScriptFile=/usr/share/plymouth/themes/periphery/periphery.script

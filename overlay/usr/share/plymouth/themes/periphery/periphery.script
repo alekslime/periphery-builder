@@ -1,0 +1,72 @@
+// Periphery OS Plymouth boot theme
+// Background photo, scaled to cover the screen, with a translucent panel
+// holding the wordmark + a boot-progress bar centered near the bottom third.
+
+Window.SetBackgroundTopColor(0.157, 0.267, 0.227);
+Window.SetBackgroundBottomColor(0.157, 0.267, 0.227);
+
+// ---- background (cover-fit) ----
+background.image = Image("background.png");
+screen_w = Window.GetWidth();
+screen_h = Window.GetHeight();
+screen_ratio = screen_w / screen_h;
+bg_ratio = background.image.GetWidth() / background.image.GetHeight();
+
+if (bg_ratio > screen_ratio) {
+  bg_resized = background.image.Scale(screen_h * bg_ratio, screen_h);
+} else {
+  bg_resized = background.image.Scale(screen_w, screen_w / bg_ratio);
+}
+background.sprite = Sprite(bg_resized);
+background.sprite.SetX((screen_w - bg_resized.GetWidth()) / 2);
+background.sprite.SetY((screen_h - bg_resized.GetHeight()) / 2);
+background.sprite.SetZ(-10);
+
+// ---- panel (pre-sized to fit logo + progress bar, see periphery.py generator) ----
+panel.image = Image("panel.png");
+panel.x = screen_w / 2 - panel.image.GetWidth() / 2;
+panel.y = screen_h * 0.70;
+panel.sprite = Sprite(panel.image);
+panel.sprite.SetX(panel.x);
+panel.sprite.SetY(panel.y);
+panel.sprite.SetZ(0);
+
+// ---- logo/wordmark ----
+logo.image = Image("logo.png");
+logo.x = panel.x + (panel.image.GetWidth() - logo.image.GetWidth()) / 2;
+logo.y = panel.y + 36;
+logo.sprite = Sprite(logo.image);
+logo.sprite.SetX(logo.x);
+logo.sprite.SetY(logo.y);
+logo.sprite.SetZ(1);
+
+// ---- progress bar ----
+progress_box.image = Image("progress_box.png");
+progress_box.x = panel.x + (panel.image.GetWidth() - progress_box.image.GetWidth()) / 2;
+progress_box.y = logo.y + logo.image.GetHeight() + 28;
+progress_box.sprite = Sprite(progress_box.image);
+progress_box.sprite.SetX(progress_box.x);
+progress_box.sprite.SetY(progress_box.y);
+progress_box.sprite.SetZ(1);
+
+progress_bar.original_image = Image("progress_bar.png");
+progress_bar.sprite = Sprite();
+progress_bar.sprite.SetZ(2);
+
+fun progress_callback(duration, progress) {
+  new_width = Math.Int(progress_bar.original_image.GetWidth() * progress);
+  if (new_width < 1) new_width = 1;
+  progress_bar.image = progress_bar.original_image.Scale(new_width, progress_bar.original_image.GetHeight());
+  progress_bar.sprite.SetImage(progress_bar.image);
+  progress_bar.sprite.SetX(progress_box.x + 3);
+  progress_bar.sprite.SetY(progress_box.y + 3);
+}
+Plymouth.SetBootProgressFunction(progress_callback);
+
+fun display_message_callback(text) {
+}
+Plymouth.SetMessageFunction(display_message_callback);
+
+fun quit_callback() {
+}
+Plymouth.SetQuitFunction(quit_callback);
