@@ -9,6 +9,7 @@ tool list can be edited without touching this file.
 """
 import json
 import os
+import subprocess
 import sys
 import webbrowser
 
@@ -375,10 +376,29 @@ class WelcomeWindow(QWidget):
             f.write("shown\n")
 
 
+def _is_live_session():
+    """
+    True if we're running from the live ISO (root filesystem is an overlay
+    on the squashfs), False if this is a real install (root is a normal
+    filesystem on disk, e.g. ext4). Fails open (returns False) if the check
+    itself can't run, so an installed system is never accidentally silenced.
+    """
+    try:
+        result = subprocess.run(
+            ["findmnt", "-no", "FSTYPE", "/"],
+            capture_output=True, text=True, timeout=5
+        )
+        return result.stdout.strip() == "overlay"
+    except Exception:
+        return False
+
+
 def main():
     if "--autostart-check" in sys.argv:
+        if _is_live_session():
+            sys.exit(0)  # never auto-pop on the live ISO, only on a real install
         if os.path.exists(MARKER_FILE):
-            sys.exit(0)  # already shown once, autostart stays quiet
+            sys.exit(0)  # already shown once on this installed system
 
     app = QApplication(sys.argv)
     app.setApplicationName("Periphery Welcome")
