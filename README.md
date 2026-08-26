@@ -1,150 +1,79 @@
 # periphery-builder
 
-Build tooling for Periphery OS — an Ubuntu 26.04 LTS ("Resolute Raccoon")
-derivative focused on deliberate-practice learning environments for CS/CE
-students.
+Build tooling for **Periphery OS** — an Ubuntu 26.04 LTS ("Resolute Raccoon") derivative focused on deliberate-practice learning environments for CS/CE students.
 
-**Status:** Phase 5 — installer, branding, and a first-boot tool-installer app
-are all working end-to-end on a fresh install. Automation is done for the
-build pipeline itself; the next milestone is expanding the actual
-learning-environment features beyond the initial four fields.
-
-## Quickstart
-
-```bash
-git clone https://github.com/alekslime/periphery-builder.git
-cd periphery-builder
-
-# apply rootfs customizations (installer, branding, Welcome app)
-sudo ROOTFS=/path/to/rootfs ./apply-overlay.sh
-
-# full pipeline: overlay -> squashfs -> initrd refresh -> ISO
-./full-build.sh              # fast iteration (gzip)
-./full-build.sh --release    # distributable build (xz, smaller/slower)
-```
-
-Requires an existing rootfs built via `debootstrap` (see **Base rootfs**
-below) with the packages listed in **Rootfs dependencies**.
-
-## What's in the box
-
-- **Custom Calamares installer branding** — `Install Periphery OS` launcher,
-  fixed to run with proper privilege escalation via `pkexec`
-  (`overlay/usr/bin/calamares-launch-normal`).
-- **Full visual identity** — GRUB boot menu, Plymouth boot splash, SDDM login
-  background, Plasma desktop wallpaper, and app/distributor icons, all pulled
-  from one source photo + a two-color logo mark. See `BRANDING.md`.
-- **Periphery Welcome** — a first-boot app (EndeavourOS-style) that lets
-  students check off tools for their field — Software Engineering, Computer
-  Engineering, Data Science/ML, Cybersecurity — and installs them via
-  apt/snap/pip with one privilege prompt per batch. Pops up automatically
-  once on a real install, reopenable anytime from the app menu. Never
-  auto-pops on the live ISO itself. See `WELCOME_APP.md`.
-- **Overlay system** (`apply-overlay.sh` + `overlay/`) — every rootfs
-  customization above is tracked as real files in this repo, applied
-  reproducibly, instead of living only as manual edits inside a live shell.
-
-## Repo layout
-
-```
-periphery-builder/
-├── apply-overlay.sh   # copies overlay/ into a rootfs, preserving permissions
-├── build.sh            # GRUB staging + grub-mkrescue -> final ISO
-├── full-build.sh        # one-command pipeline: overlay -> squashfs -> initrd -> build.sh
-├── overlay/              # tracked rootfs customizations, mirrors real paths
-│   ├── usr/bin/calamares-launch-normal
-│   ├── usr/share/applications/{periphery-installer,periphery-welcome}.desktop
-│   ├── usr/share/periphery-welcome/            # Welcome app: code, assets, tools.json
-│   ├── usr/share/wallpapers/Periphery/          # KDE wallpaper package
-│   ├── usr/share/plymouth/themes/periphery/     # boot splash
-│   ├── usr/share/sddm/themes/ubuntu-budgie-login/theme.conf
-│   ├── etc/os-release
-│   └── etc/xdg/autostart/periphery-welcome-autostart.desktop
-├── BRANDING.md          # branding asset details, install steps, verified-vs-best-effort status
-├── WELCOME_APP.md       # Welcome app architecture, install methods, boot-test checklist
-└── HANDOFF.md           # phase-by-phase build log: what broke, root causes, fixes
-```
+**Status:** Phase 3 — automated build pipeline working end-to-end (rootfs → overlay → squashfs → bootable ISO). Welcome app (first-run tool installer) implemented and boot-tested.
 
 ## Build host
 
-- Native Linux laptop (not a VM) — `debootstrap`/`chroot` tooling doesn't
-  need Windows/VirtualBox isolation on a Linux host.
-- Isolation for rootfs admin tasks: `systemd-nspawn`, not raw chroot.
-- VirtualBox's role is narrowed to **ISO testing only** — a separate VM boots
-  the finished `.iso`, kept deliberately isolated from the build host.
+- Native Ubuntu 26.04 laptop (not a VM — debootstrap/chroot tooling doesn't need Windows/VM isolation on a Linux host; see decision log below)
+- Isolation for build steps: `systemd-nspawn`, not raw chroot
+- VirtualBox is used only downstream, to boot and test the finished `.iso` — kept deliberately isolated from the build host
 
-## Base rootfs
+## Pipeline
 
 ```bash
-sudo debootstrap --arch=amd64 resolute ~/periphery/build/rootfs \
-  http://archive.ubuntu.com/ubuntu/
+cd ~/periphery/periphery-builder
+./full-build.sh
 ```
 
-Enter the rootfs for admin tasks (package installs, etc.):
+`full-build.sh` runs the full chain:
+
+1. **Base rootfs** — `debootstrap --arch=amd64 resolute ...` against the Ubuntu archive
+2. **Overlay merge** — applies everything under `overlay/` on top of the rootfs (branding/installer files plus the Welcome app), file-for-file
+3. **Package install inside the rootfs** (via `systemd-nspawn`), including:
+   - `linux-image-generic` for the kernel (`/boot/vmlinuz-<ver>`, `/boot/initrd.img-<ver>`)
+   - `casper` for live-boot support (this deliberately replaces `dracut`, pulled in transitively by the kernel package, with `initramfs-tools` — Casper's boot scripts are written against the initramfs-tools hook framework)
+   - `python3-pyqt5` and the other Welcome app dependencies
+4. **SquashFS + ISO assembly** — compresses the rootfs and builds the final bootable image (`casper/`, `boot/grub/`, `xorriso` with GRUB EFI stubs)
+
+A clean run currently completes with no errors: all overlay files apply, the squashfs rebuilds, and the ISO builds successfully.
+
+### Entering the rootfs manually
 
 ```bash
-sudo systemd-nspawn -D ~/periphery/build/rootfs --bind-ro=/etc/resolv.conf /bin/bash
+sudo systemd-nspawn -D ~/periphery/build/rootfs --bind-ro=/etc/resolv.conf
 ```
 
-`--bind-ro=/etc/resolv.conf` is required for networking (apt) to work in
-non-`--boot` mode — without it, DNS resolution silently fails inside the
-container even though the host has working internet.
+`--bind-ro=/etc/resolv.conf` is required for networking (apt) to work in non-`--boot` mode — `--resolv-conf=copy-host` was unreliable on this systemd version when the rootfs had no pre-existing `resolv.conf`.
 
-## Rootfs dependencies
-
-Installed once inside the rootfs before building:
+For a full boot test of the rootfs itself (not the ISO):
 
 ```bash
-apt install -y \
-  linux-image-generic \
-  casper \
-  grub-efi-amd64-bin grub-efi-amd64-signed shim-signed grub-pc-bin grub-common \
-  xorriso mtools \
-  plymouth-label \
-  python3-pyqt5
+sudo systemd-nspawn -D ~/periphery/build/rootfs --boot
 ```
 
-- `casper` replaces `dracut` with `initramfs-tools` — expected, Casper's boot
-  scripts are written against the initramfs-tools hook framework.
-- `plymouth-label` is required for the custom Plymouth theme's text
-  rendering; without it, `update-initramfs` warns about a missing
-  `label-pango.so` plugin.
-- `python3-pyqt5` is required for the Periphery Welcome app.
+Requires a root password set first (`passwd`, run inside a non-boot nspawn session) since debootstrap leaves root locked/passwordless.
 
-After installing packages that affect early boot (kernel, Plymouth theme,
-casper), regenerate the initramfs — `full-build.sh` does this automatically
-as part of its pipeline, but if you're working manually:
+## Overlay system
 
-```bash
-update-initramfs -u
-```
+`overlay/` mirrors the target filesystem layout and is applied wholesale onto the rootfs during the build. It currently carries two categories of files side by side:
+
+- **Branding/installer files** — Periphery OS branding and Calamares installer configuration
+- **Welcome app** — `overlay/usr/share/periphery-welcome/` and `overlay/usr/bin/periphery-welcome`
+
+## Periphery Welcome (first-run tool installer)
+
+A PyQt5 app (`periphery_welcome.py`, launched via `/usr/bin/periphery-welcome`) that lets a student pick field-specific tools to install on first login. See `WELCOME_APP.md` for the full test checklist.
+
+**Behavior:**
+
+- **Tri-state category checkboxes** — checking a category checks all its tools; unchecking one tool inside a checked category flips the category to a partial/dash state
+- **Real installs** — selected tools install via `apt-get` behind a single `pkexec` password prompt, with live output streamed to a log pane and a progress bar
+- **Skip / re-open** — "Skip for now" dismisses the app; it can still be reopened later from the app menu regardless of whether it's been shown before
+- **Autostart, scoped to real installs only** — the app is designed to auto-pop on first login *after a real Calamares install*, not during a live-ISO session. It distinguishes the two by checking the root filesystem type via `findmnt` (`overlay` on a live session vs. a real filesystem once installed) before deciding whether to autostart. This check only runs on the autostart code path — launching the app manually (app menu or `/usr/bin/periphery-welcome` directly) always works, on a live session or an install, regardless of this logic.
+- **Marker file** — `~/.config/periphery-welcome-shown` tracks whether autostart has already fired once on a real install; manual launches ignore it entirely.
+
+Boot-testing the Welcome app itself doesn't require Calamares to have run — a live-boot session (ISO attached, no disk) is enough for the UI, checkbox behavior, and a real `apt install` test. Verifying the autostart-after-real-install behavior specifically does require a full Calamares install onto a fresh disk, since that's the one path a live session can't exercise.
 
 ## Key decisions and why
 
-- **Option C (debootstrap-based custom builder) over live-build or Cubic** —
-  live-build is scaffolding-only reference; Cubic-style ISO respins don't
-  give real ownership of the build pipeline.
-- **Native Linux build host over Windows/VirtualBox** — `debootstrap`/chroot
-  only work on Linux. `systemd-nspawn` gives comparable isolation
-  (separate mount/PID/network namespaces) to a full VM at near-zero overhead,
-  since it shares the host kernel.
-- **Overlay system over manual rootfs edits** — early fixes (see
-  `HANDOFF.md` Phase 3) were applied by hand inside a live `nspawn` shell,
-  which meant they only existed on one machine with no record of how they
-  were applied. Every customization now lives as a real file in this repo.
+- **Option C (debootstrap-based custom builder)** over live-build or Cubic — live-build is scaffolding-only reference; Cubic-style ISO respins don't give real ownership of the build pipeline.
+- **Native Linux build host** over Windows/VirtualBox — debootstrap/chroot only work on Linux; once off Windows, a full VM adds isolation VirtualBox gives for free but at full VM overhead cost. `systemd-nspawn` gives comparable isolation (separate mount/PID/network namespaces) at near-zero overhead since it shares the host kernel.
+- **VirtualBox's role narrowed to ISO testing only** — a separate VM boots the finished `.iso`, kept deliberately isolated from the build host.
 
 ## Known gaps / next steps
 
-- **Field toolchains beyond the initial four** — SWE, Computer Engineering,
-  Data Science/ML, and Cybersecurity are covered in `tools.json`; more
-  fields/majors can be added there without touching app code.
-- **`gh` (GitHub CLI) apt availability** hasn't been independently verified
-  against this rootfs's exact sources — confirm with `apt-cache policy gh`.
-- **No GPU-accelerated PyTorch path** — intentionally CPU-only for now, since
-  GPU builds need matching NVIDIA driver versions that can't be safely
-  assumed for arbitrary student hardware.
-- See `HANDOFF.md` for the full phase-by-phase history, including root
-  causes for every bug hit along the way (a recurring one worth knowing:
-  **always run `findmnt /` first** when something baked into the build
-  "isn't showing up" in a VM — a stray attached disk winning the boot race
-  has caused this exact symptom more than once).
+- `grub-efi-amd64-bin` needs to be installed inside the rootfs (currently only on the build host) before EFI boot can work end-to-end.
+- Casper pulled in several `casper-bottom` scripts assuming a desktop environment (GNOME/KDE-specific disables) — needs review once Phase 4 desktop decisions are made.
+- Welcome app: confirmed working via manual launch and live-ISO boot test; autostart-after-real-install still needs verification against a full Calamares install on a fresh disk.
