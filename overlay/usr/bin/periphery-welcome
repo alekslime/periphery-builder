@@ -1,0 +1,3 @@
+#!/bin/bash
+# Launch Periphery Welcome.
+exec python3 /usr/share/periphery-welcome/periphery_welcome.py "$@"

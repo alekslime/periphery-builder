@@ -1,0 +1,57 @@
+{
+    "categories": [
+        {
+            "id": "swe",
+            "name": "Software Engineering",
+            "description": "Core dev tools for building and shipping software.",
+            "tools": [
+                {"id": "git", "name": "Git", "method": "apt", "package": "git", "desc": "Version control"},
+                {"id": "gh", "name": "GitHub CLI", "method": "apt", "package": "gh", "desc": "Manage GitHub from the terminal"},
+                {"id": "vscode", "name": "VS Code", "method": "snap", "package": "code", "classic": true, "desc": "Code editor"},
+                {"id": "docker", "name": "Docker", "method": "apt", "package": "docker.io", "desc": "Containers"},
+                {"id": "postman", "name": "Postman", "method": "snap", "package": "postman", "desc": "API testing"},
+                {"id": "node", "name": "Node.js + npm", "method": "apt", "package": "nodejs npm", "desc": "JavaScript runtime"},
+                {"id": "python", "name": "Python 3 + pip", "method": "apt", "package": "python3 python3-pip", "desc": "Python toolchain"},
+                {"id": "java", "name": "OpenJDK 17", "method": "apt", "package": "openjdk-17-jdk", "desc": "Java toolchain"},
+                {"id": "go", "name": "Go", "method": "apt", "package": "golang-go", "desc": "Go toolchain"}
+            ]
+        },
+        {
+            "id": "ce",
+            "name": "Computer Engineering",
+            "description": "Digital design, embedded systems, and low-level tooling.",
+            "tools": [
+                {"id": "kicad", "name": "KiCad", "method": "apt", "package": "kicad", "desc": "PCB / schematic design"},
+                {"id": "gtkwave", "name": "GTKWave", "method": "apt", "package": "gtkwave", "desc": "Waveform viewer"},
+                {"id": "iverilog", "name": "Icarus Verilog", "method": "apt", "package": "iverilog", "desc": "Verilog simulator"},
+                {"id": "ghdl", "name": "GHDL", "method": "apt", "package": "ghdl", "desc": "VHDL simulator"},
+                {"id": "arduino", "name": "Arduino IDE", "method": "snap", "package": "arduino", "classic": true, "desc": "Microcontroller IDE"},
+                {"id": "buildessential", "name": "GCC / GDB / Make / CMake", "method": "apt", "package": "build-essential gdb cmake", "desc": "C/C++ toolchain"},
+                {"id": "qemu", "name": "QEMU", "method": "apt", "package": "qemu-system", "desc": "Machine emulator"}
+            ]
+        },
+        {
+            "id": "datasci",
+            "name": "Data Science / ML",
+            "description": "Notebooks, numerical computing, and ML frameworks.",
+            "tools": [
+                {"id": "python-ds", "name": "Python 3 + pip", "method": "apt", "package": "python3 python3-pip", "desc": "Python toolchain"},
+                {"id": "jupyter", "name": "JupyterLab", "method": "pip", "package": "jupyterlab", "desc": "Notebook environment"},
+                {"id": "pydata", "name": "pandas / numpy / matplotlib / scikit-learn", "method": "pip", "package": "pandas numpy matplotlib scikit-learn", "desc": "Core data science stack"},
+                {"id": "pytorch", "name": "PyTorch (CPU)", "method": "pip", "package": "torch --index-url https://download.pytorch.org/whl/cpu", "desc": "ML framework, CPU build. GPU builds need matching drivers \u2014 install manually if you have an NVIDIA GPU.", "advanced": true},
+                {"id": "r", "name": "R", "method": "apt", "package": "r-base", "desc": "Statistical computing language", "advanced": true}
+            ]
+        },
+        {
+            "id": "cyber",
+            "name": "Cybersecurity",
+            "description": "Network analysis, reverse engineering, and pentesting tools.",
+            "tools": [
+                {"id": "wireshark", "name": "Wireshark", "method": "apt", "package": "wireshark", "desc": "Packet analyzer"},
+                {"id": "nmap", "name": "nmap", "method": "apt", "package": "nmap", "desc": "Network scanner"},
+                {"id": "ghidra", "name": "Ghidra", "method": "manual", "url": "https://ghidra-sre.org/", "desc": "Reverse engineering suite \u2014 not packaged for apt/snap, download from the official site"},
+                {"id": "burpsuite", "name": "Burp Suite Community", "method": "snap", "package": "burpsuite", "desc": "Web app security testing"}
+            ]
+        }
+    ]
+}

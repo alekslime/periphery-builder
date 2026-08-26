@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Periphery Welcome
+GenericName=Field Tool Installer
+Comment=Install tools for your major or field
+Exec=/usr/bin/periphery-welcome
+Icon=periphery-logo
+Terminal=false
+Categories=System;Settings;
+Keywords=welcome;tools;install;setup;periphery;
+StartupNotify=true

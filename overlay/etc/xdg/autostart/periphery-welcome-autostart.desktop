@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Periphery Welcome (autostart check)
+Exec=/usr/bin/periphery-welcome --autostart-check
+Terminal=false
+NoDisplay=true
+X-KDE-autostart-phase=1
