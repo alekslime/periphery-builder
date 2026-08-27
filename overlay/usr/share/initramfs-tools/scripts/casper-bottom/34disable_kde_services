@@ -1,0 +1,30 @@
+#! /bin/sh
+
+PREREQ=""
+DESCRIPTION="Disabling unnecessary KDE services..."
+
+prereqs()
+{
+       echo "$PREREQ"
+}
+
+case $1 in
+prereqs)
+       prereqs
+       exit 0
+       ;;
+esac
+
+. /scripts/casper-functions
+
+log_begin_msg "$DESCRIPTION"
+
+skeldir="/root/etc/skel/.config"
+mkdir -p "$skeldir"
+
+printf "[Daemon]\nTimeout=0\nAutolock=false\nLockOnResume=false\n" >> "$skeldir"/kscreenlockerrc
+printf "[Basic Settings]\nIndexing-Enabled=false\n" >> "$skeldir"/baloofilerc
+printf "[Module-notificationhelper]\nautoload=false\n" >> "$skeldir"/kded5rc
+printf "[Wallet]\nEnabled=false\n" >> "$skeldir"/kwalletrc
+
+log_end_msg
