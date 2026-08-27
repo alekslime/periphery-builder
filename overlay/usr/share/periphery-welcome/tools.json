@@ -25,9 +25,9 @@
                 {"id": "gtkwave", "name": "GTKWave", "method": "apt", "package": "gtkwave", "desc": "Waveform viewer"},
                 {"id": "iverilog", "name": "Icarus Verilog", "method": "apt", "package": "iverilog", "desc": "Verilog simulator"},
                 {"id": "ghdl", "name": "GHDL", "method": "apt", "package": "ghdl", "desc": "VHDL simulator"},
-                {"id": "arduino", "name": "Arduino IDE", "method": "snap", "package": "arduino", "classic": true, "desc": "Microcontroller IDE"},
+                {"id": "arduino", "name": "Arduino IDE", "method": "apt", "package": "arduino", "desc": "Microcontroller IDE. This installs the legacy 1.8.x IDE from Ubuntu's repos \u2014 the current 2.x IDE isn't packaged for apt or snap; grab it manually from arduino.cc if you need the newer editor."},
                 {"id": "buildessential", "name": "GCC / GDB / Make / CMake", "method": "apt", "package": "build-essential gdb cmake", "desc": "C/C++ toolchain"},
-                {"id": "qemu", "name": "QEMU", "method": "apt", "package": "qemu-system", "desc": "Machine emulator"}
+                {"id": "qemu", "name": "QEMU", "method": "apt", "package": "qemu-system-x86", "desc": "Machine emulator"}
             ]
         },
         {
@@ -50,7 +50,82 @@
                 {"id": "wireshark", "name": "Wireshark", "method": "apt", "package": "wireshark", "desc": "Packet analyzer"},
                 {"id": "nmap", "name": "nmap", "method": "apt", "package": "nmap", "desc": "Network scanner"},
                 {"id": "ghidra", "name": "Ghidra", "method": "manual", "url": "https://ghidra-sre.org/", "desc": "Reverse engineering suite \u2014 not packaged for apt/snap, download from the official site"},
-                {"id": "burpsuite", "name": "Burp Suite Community", "method": "snap", "package": "burpsuite", "desc": "Web app security testing"}
+                {"id": "burpsuite", "name": "Burp Suite Community", "method": "manual", "url": "https://portswigger.net/burp/communitydownload", "desc": "Web app security testing \u2014 no verified official apt/snap package; download the installer directly from PortSwigger"}
+            ]
+        },
+        {
+            "id": "webdev",
+            "name": "Web Development",
+            "description": "Frontend/backend web tooling, split out from general SWE.",
+            "tools": [
+                {"id": "node-web", "name": "Node.js + npm", "method": "apt", "package": "nodejs npm", "desc": "JavaScript runtime"},
+                {"id": "vscode-web", "name": "VS Code", "method": "snap", "package": "code", "classic": true, "desc": "Code editor"},
+                {"id": "chromium", "name": "Chromium", "method": "snap", "package": "chromium", "desc": "Browser \u2014 Ubuntu only ships Chromium as a snap, not via apt, as of this release"},
+                {"id": "docker-web", "name": "Docker", "method": "apt", "package": "docker.io", "desc": "Containers, for local dev environments"},
+                {"id": "git-web", "name": "Git", "method": "apt", "package": "git", "desc": "Version control"}
+            ]
+        },
+        {
+            "id": "gamedev",
+            "name": "Game Development",
+            "description": "Engines and tools for 2D/3D game development.",
+            "tools": [
+                {"id": "blender", "name": "Blender", "method": "snap", "package": "blender", "classic": true, "desc": "3D modeling, animation, and rendering suite"},
+                {"id": "godot", "name": "Godot Engine", "method": "manual", "url": "https://godotengine.org/download", "desc": "2D/3D game engine \u2014 the community snap landscape is fragmented across several unofficial packages for the current 4.x version, so download the official build directly instead"},
+                {"id": "buildessential-game", "name": "GCC / Make / CMake", "method": "apt", "package": "build-essential cmake", "desc": "C/C++ toolchain, for engines written in C/C++"}
+            ]
+        },
+        {
+            "id": "devops",
+            "name": "DevOps / Cloud",
+            "description": "Infrastructure, containers, and cloud tooling.",
+            "tools": [
+                {"id": "docker-devops", "name": "Docker", "method": "apt", "package": "docker.io", "desc": "Containers"},
+                {"id": "kubectl", "name": "kubectl", "method": "snap", "package": "kubectl", "classic": true, "desc": "Kubernetes command-line client"},
+                {"id": "terraform", "name": "Terraform", "method": "snap", "package": "terraform", "classic": true, "desc": "Infrastructure as code \u2014 this snap is community-maintained (Snapcrafters), not published directly by HashiCorp, but is the standard way to get it via snap"},
+                {"id": "awscli", "name": "AWS CLI", "method": "manual", "url": "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html", "desc": "AWS's own v2 installer is a downloaded script, not an apt/snap/pip package \u2014 the pip package installs the deprecated v1. Follow AWS's official install guide."}
+            ]
+        },
+        {
+            "id": "mobile",
+            "name": "Mobile Development",
+            "description": "Android and cross-platform mobile app tooling.",
+            "tools": [
+                {"id": "flutter", "name": "Flutter", "method": "snap", "package": "flutter", "classic": true, "desc": "Google's cross-platform UI toolkit, officially published"},
+                {"id": "android-studio", "name": "Android Studio", "method": "snap", "package": "android-studio", "classic": true, "desc": "Android IDE \u2014 community-maintained snap, but it's the standard install path recommended in Ubuntu's own Flutter setup guide"},
+                {"id": "java-mobile", "name": "OpenJDK 17", "method": "apt", "package": "openjdk-17-jdk", "desc": "Required for Android tooling"}
+            ]
+        },
+        {
+            "id": "networking",
+            "name": "Networking",
+            "description": "Network fundamentals and diagnostics \u2014 distinct from Cybersecurity's offensive/analysis tools.",
+            "tools": [
+                {"id": "wireshark-net", "name": "Wireshark", "method": "apt", "package": "wireshark", "desc": "Packet analyzer"},
+                {"id": "nettools", "name": "net-tools", "method": "apt", "package": "net-tools", "desc": "Classic networking utilities (ifconfig, netstat, etc.)"},
+                {"id": "iperf3", "name": "iperf3", "method": "apt", "package": "iperf3", "desc": "Network bandwidth testing"},
+                {"id": "gns3", "name": "GNS3", "method": "manual", "url": "https://www.gns3.com/software/download", "desc": "Network topology simulator \u2014 setup involves a companion GNS3 VM and isn't a simple single-package install; follow GNS3's own setup guide"}
+            ]
+        },
+        {
+            "id": "ee",
+            "name": "Electrical Engineering",
+            "description": "Circuit design and simulation tools.",
+            "tools": [
+                {"id": "kicad-ee", "name": "KiCad", "method": "apt", "package": "kicad", "desc": "PCB / schematic design"},
+                {"id": "ngspice", "name": "ngspice", "method": "apt", "package": "ngspice", "desc": "SPICE circuit simulator"},
+                {"id": "octave", "name": "GNU Octave", "method": "apt", "package": "octave", "desc": "Numerical computing, MATLAB-like syntax"},
+                {"id": "gnuplot", "name": "gnuplot", "method": "apt", "package": "gnuplot", "desc": "Plotting utility, common for lab/circuit data"}
+            ]
+        },
+        {
+            "id": "mech",
+            "name": "Mechanical / Robotics Engineering",
+            "description": "CAD, simulation, and robotics tooling.",
+            "tools": [
+                {"id": "freecad", "name": "FreeCAD", "method": "snap", "package": "freecad", "desc": "Parametric 3D CAD \u2014 this release has no apt candidate, snap is the reliable path"},
+                {"id": "openscad", "name": "OpenSCAD", "method": "snap", "package": "openscad", "desc": "Script-based solid 3D CAD"},
+                {"id": "ros", "name": "ROS / ROS2", "method": "manual", "url": "https://www.ros.org/", "desc": "Robot Operating System \u2014 package names and repos are tied tightly to specific Ubuntu releases; follow ROS's official install guide for the version matching this OS", "advanced": true}
             ]
         }
     ]
