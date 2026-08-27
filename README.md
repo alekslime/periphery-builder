@@ -1,13 +1,14 @@
 # periphery-builder
 
-Build tooling for Periphery OS — an Ubuntu 26.04 LTS ("Resolute Raccoon")
+Build tooling for **Periphery OS** — an Ubuntu 26.04 LTS ("Resolute Raccoon")
 derivative focused on deliberate-practice learning environments for CS/CE
 students.
 
-**Status:** Phase 5 — installer, branding, and a first-boot tool-installer app
-are all working end-to-end on a fresh install. Automation is done for the
-build pipeline itself; the next milestone is expanding the actual
-learning-environment features beyond the initial four fields.
+**Status:** Rootfs, installer, full branding, and a first-boot tool-installer
+app (11 fields, 51 tools) are all working end-to-end, boot-tested on a real
+Calamares install. The build pipeline itself is fully automated via
+`full-build.sh`. Next milestone: expanding actual learning-environment
+features beyond the initial tool-installer app.
 
 ## Quickstart
 
@@ -35,11 +36,13 @@ below) with the packages listed in **Rootfs dependencies**.
   background, Plasma desktop wallpaper, and app/distributor icons, all pulled
   from one source photo + a two-color logo mark. See `BRANDING.md`.
 - **Periphery Welcome** — a first-boot app (EndeavourOS-style) that lets
-  students check off tools for their field — Software Engineering, Computer
-  Engineering, Data Science/ML, Cybersecurity — and installs them via
-  apt/snap/pip with one privilege prompt per batch. Pops up automatically
-  once on a real install, reopenable anytime from the app menu. Never
-  auto-pops on the live ISO itself. See `WELCOME_APP.md`.
+  students check off tools for their field and installs them via
+  apt/snap/pip. Covers 11 fields (Software Engineering, Computer Engineering,
+  Data Science/ML, Cybersecurity, Web Dev, Game Dev, DevOps/Cloud, Mobile Dev,
+  Networking, Electrical Engineering, Mechanical/Robotics), 51 tools total,
+  each package name individually checked against real sources rather than
+  assumed. See `WELCOME_APP.md` for the full behavior spec and verification
+  notes.
 - **Overlay system** (`apply-overlay.sh` + `overlay/`) — every rootfs
   customization above is tracked as real files in this repo, applied
   reproducibly, instead of living only as manual edits inside a live shell.
@@ -87,8 +90,19 @@ sudo systemd-nspawn -D ~/periphery/build/rootfs --bind-ro=/etc/resolv.conf /bin/
 ```
 
 `--bind-ro=/etc/resolv.conf` is required for networking (apt) to work in
-non-`--boot` mode — without it, DNS resolution silently fails inside the
-container even though the host has working internet.
+non-`--boot` mode — `--resolv-conf=copy-host` was unreliable on this systemd
+version when the rootfs had no pre-existing `resolv.conf`; without the bind
+mount, DNS resolution silently fails inside the container even though the
+host has working internet.
+
+For a full boot test of the rootfs itself (not the ISO):
+
+```bash
+sudo systemd-nspawn -D ~/periphery/build/rootfs --boot
+```
+
+Requires a root password set first (`passwd`, run inside a non-boot nspawn
+session) since debootstrap leaves root locked/passwordless.
 
 ## Rootfs dependencies
 
@@ -104,8 +118,11 @@ apt install -y \
   python3-pyqt5
 ```
 
-- `casper` replaces `dracut` with `initramfs-tools` — expected, Casper's boot
-  scripts are written against the initramfs-tools hook framework.
+- `linux-image-generic` provides the kernel (`/boot/vmlinuz-<ver>`,
+  `/boot/initrd.img-<ver>`).
+- `casper` replaces `dracut` (pulled in transitively by the kernel package)
+  with `initramfs-tools` — expected, Casper's boot scripts are written
+  against the initramfs-tools hook framework, not dracut.
 - `plymouth-label` is required for the custom Plymouth theme's text
   rendering; without it, `update-initramfs` warns about a missing
   `label-pango.so` plugin.
@@ -118,6 +135,41 @@ as part of its pipeline, but if you're working manually:
 ```bash
 update-initramfs -u
 ```
+
+## Periphery Welcome (first-run tool installer)
+
+A PyQt5 app (`periphery_welcome.py`, launched via `/usr/bin/periphery-welcome`)
+that lets a student pick field-specific tools to install on first login.
+
+**Behavior:**
+
+- **Tri-state category checkboxes** — checking a category checks all its
+  tools; unchecking one tool inside a checked category flips the category to
+  a partial/dash state.
+- **Real installs** — selected tools install via apt/snap/pip, batched to
+  minimize `pkexec` password prompts, with live output streamed to a log
+  pane and a progress bar.
+- **Skip / re-open** — "Skip for now" dismisses the app; it can still be
+  reopened later from the app menu regardless of whether it's been shown
+  before.
+- **Autostart, scoped to real installs only** — the app auto-pops on first
+  login *after a real Calamares install*, not during a live-ISO session. It
+  distinguishes the two by checking the root filesystem type via `findmnt`
+  (`overlay` on a live session vs. a real filesystem once installed) before
+  deciding whether to autostart. This check only runs on the autostart code
+  path — launching the app manually (app menu or `/usr/bin/periphery-welcome`
+  directly) always works, on a live session or an install, regardless of
+  this logic.
+- **Marker file** — `~/.config/periphery-welcome-shown` tracks whether
+  autostart has already fired once on a real install; manual launches
+  ignore it entirely.
+
+Boot-testing the Welcome app's UI, checkbox behavior, and a real install
+doesn't require Calamares to have run — a live-boot session (ISO attached,
+no disk) is enough. Verifying the autostart-after-real-install behavior
+specifically does require a full Calamares install onto a fresh disk, since
+that's the one path a live session can't exercise. See `WELCOME_APP.md` for
+the full checklist and the per-tool package verification notes.
 
 ## Key decisions and why
 
@@ -135,14 +187,17 @@ update-initramfs -u
 
 ## Known gaps / next steps
 
-- **Field toolchains beyond the initial four** — SWE, Computer Engineering,
-  Data Science/ML, and Cybersecurity are covered in `tools.json`; more
-  fields/majors can be added there without touching app code.
-- **`gh` (GitHub CLI) apt availability** hasn't been independently verified
-  against this rootfs's exact sources — confirm with `apt-cache policy gh`.
+- **Field toolchains can keep growing** — 11 fields/51 tools are in
+  `tools.json` now; more fields/majors can be added there without touching
+  app code. A few entries (Godot, ROS, GNS3, AWS CLI, Burp Suite, Ghidra) are
+  intentionally `manual`-install rather than apt/snap, because no reliably
+  verified package exists for them on this release — see `WELCOME_APP.md`
+  for the specifics per tool.
 - **No GPU-accelerated PyTorch path** — intentionally CPU-only for now, since
   GPU builds need matching NVIDIA driver versions that can't be safely
   assumed for arbitrary student hardware.
+- Casper pulled in several `casper-bottom` scripts assuming a desktop
+  environment (GNOME/KDE-specific disables) — worth a review pass.
 - See `HANDOFF.md` for the full phase-by-phase history, including root
   causes for every bug hit along the way (a recurring one worth knowing:
   **always run `findmnt /` first** when something baked into the build
