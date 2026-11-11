@@ -29,7 +29,10 @@ below) with the packages listed in **Rootfs dependencies**.
 
 ## What's in the box
 
-- **Custom Calamares installer branding** — `Install Periphery OS` launcher,
+- **Custom Calamares installer branding** — full visual theme (sidebar,
+  welcome art, install slideshow) in
+  `overlay/etc/calamares/branding/periphery/`, plus the `Install Periphery OS`
+  launcher,
   fixed to run with proper privilege escalation via `pkexec`
   (`overlay/usr/bin/calamares-launch-normal`).
 - **Full visual identity** — GRUB boot menu, Plymouth boot splash, SDDM login
@@ -68,6 +71,7 @@ periphery-builder/
 │   ├── usr/share/sddm/themes/ubuntu-budgie-login/theme.conf
 │   ├── usr/bin/periphery-focus
 │   ├── usr/share/periphery-focus/lists/             # Focus blocklists (4 categories)
+│   ├── etc/calamares/branding/periphery/            # installer theme (desc, slideshow, art)
 │   ├── etc/firefox/policies/policies.json
 │   ├── etc/os-release
 │   └── etc/xdg/autostart/periphery-welcome-autostart.desktop
