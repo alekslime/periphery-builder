@@ -1,0 +1,18 @@
+# Periphery Focus — AI coding assistants (service endpoints only).
+# github.com, gitlab.com, and friends stay reachable: only the
+# assistant APIs and AI-editor backends are blocked.
+# NOTE: exact hostnames only — api.example.com must be listed
+# separately from example.com.
+
+api.githubcopilot.com
+proxy.githubcopilot.com
+api.individual.githubcopilot.com
+proxy.individual.githubcopilot.com
+copilot-proxy.githubusercontent.com
+cursor.com
+api2.cursor.sh
+codeium.com
+api.codeium.com
+windsurf.com
+tabnine.com
+supermaven.com
