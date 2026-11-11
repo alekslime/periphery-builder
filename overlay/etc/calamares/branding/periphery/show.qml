@@ -51,6 +51,18 @@ Item {
         opacity: 0.55
     }
 
+    Rectangle {
+        id: logoBadge
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.margins: 22
+        width: 76
+        height: 76
+        radius: 38
+        color: "#F1EEE4"
+        opacity: 0.92
+    }
+
     Image {
         id: logo
         anchors.top: parent.top
