@@ -250,3 +250,83 @@ squashfs + writable `/cow` overlay), not a defect in our wallpaper package. The
 actual full-size wallpaper renders correctly once selected. Worth re-checking
 on a real (non-live) install, where thumbnail caching has a normal writable
 disk to work with.
+
+## Phase 5 — Periphery Focus (AI-free-by-default focus filter)
+
+**Status: implemented, shell-tested (25 checks), pushed (9 commits)**
+
+### What
+`periphery-focus` CLI managing a marked `/etc/hosts` block across 4
+category lists (`chatbots`, `code-assistants`, `ai-search`, `ai-tutors`,
+38 domains), plus a Firefox policy (DuckDuckGo default, AI sidebar off).
+Default-on and user-owned: `on`/`off` per category, `off --for 30m`
+timed breaks with auto-restore. `full-build.sh` activates it into the
+rootfs (step 1b). Docs: `FOCUS.md`, README section.
+
+### Key decisions
+- Hosts-file blocking over packet filtering / TLS interception / VPN
+  policing — a root-holding student bypasses those anyway; the filter is
+  a commitment device, not enforcement.
+- Exact hostnames only (no wildcards); apex entries auto-cover `www.`.
+- Deliberately reachable: docs, Stack Overflow, GitHub itself, package
+  registries, tutorials, flashcards, datasets.
+
+### Bugs the test harness caught (fixed)
+1. Global flags after the command (`on --quiet`) were rejected — parser
+   now strips globals anywhere.
+2. `local cat="$1" file="$LISTS_DIR/$cat.txt"` breaks under `set -u`
+   (all names are declared before any RHS expands) — split into two
+   statements. Would have bitten on Ubuntu too, not just the test box.
+
+## Phase 6 — Calamares installer branding
+
+**Status: implemented, statically verified, pushed (6 commits).
+Boot test still required.**
+
+### What
+Full visual theme in `overlay/etc/calamares/branding/periphery/`:
+`branding.desc` (sidebar green/cream/gold, product strings, real repo
+URLs), `show.qml` install slideshow (4 slides over the desert photo),
+logo + banner art. Build selects it via `branding: periphery` in
+`settings.conf` (full-build step 1c, fail-fast). Installer menu icon
+switched to the Periphery mark.
+
+### Version-blind choices (no rootfs access at the time)
+- Only keys from the upstream default descriptor; `slideshowAPI: 1`
+  (still the upstream default).
+- Slideshow is pure QtQuick 2.0, no distro QML components.
+- No `stylesheet.qss` in v1 (sidebar keys carry the identity).
+
+## Phase 7 — Premium round + verification (Windows build-only day)
+
+**Status: implemented and pushed (9 commits). No Linux boot test was
+possible this day — everything below is verified short of real boot.**
+
+### What
+- Rendered the real Welcome app headless (offscreen Qt): fixed the
+  stock-blue tree selection to brand gold (+ hover, + branch column).
+- Slideshow: cream badge behind the logo (was lost on sky).
+- New SDDM login theme (`periphery/`, pure QtQuick, standard sddm/session
+  API only), selected by a `60-periphery.conf` drop-in; old budgie
+  background override removed. Stub-tested: caught a real bug
+  (`activeFocusOnTab` needs QtQuick 2.1).
+- GRUB photo backdrop (darkened wallpaper, fallback-safe), Plasma +
+  Konsole color schemes, `previews/` design snapshots.
+- Fixes: os-release home/support URLs, README rootfs deps (+ calamares
+  packages), desc URL cleanup, full dark-wallpaper size set.
+
+### Calamares installability, verified for real
+Pulled the actual `calamares-settings-kubuntu` 1:26.04.12 source for
+resolute: `calamares` 3.3.14 + settings both present; the real
+`settings.conf` carries top-level `branding: kubuntu`, and our exact
+activation sed turns it into `branding: periphery` (one line, idempotent).
+The Kubuntu desc uses `slideshowAPI: 1` — our choice matches the release.
+
+### Still needs the Linux host (boot-test list)
+Greeter login on the new SDDM theme, Calamares welcome + slideshow on a
+live-ISO run, GRUB photo legibility, `periphery-focus --for` restore,
+Firefox `about:policies`, wallpaper picker with the new dark set.
+
+### Pending at time of writing (uncommitted)
+Phase 7 fixes (os-release, README deps, desc URLs, dark wallpapers) plus
+this log entry itself — all in the worktree, ready to commit and push.
