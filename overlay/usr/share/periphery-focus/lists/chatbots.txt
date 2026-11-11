@@ -1,0 +1,20 @@
+# Periphery Focus — AI chatbots (general-purpose assistants).
+# One domain per line. Apex entries also cover their www. host.
+# NOTE: /etc/hosts matches exact hostnames only, not subdomains —
+# list every hostname that must resolve to 0.0.0.0.
+
+chatgpt.com
+chat.openai.com
+claude.ai
+gemini.google.com
+copilot.microsoft.com
+meta.ai
+grok.com
+deepseek.com
+chat.deepseek.com
+perplexity.ai
+poe.com
+you.com
+phind.com
+mistral.ai
+chat.mistral.ai
