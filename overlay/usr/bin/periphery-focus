@@ -1,0 +1,411 @@
+#!/usr/bin/env bash
+#
+# Periphery Focus — AI-free-by-default focus filter (user-owned, reversible).
+#
+# Manages a marked block in /etc/hosts that resolves AI chatbot, AI code
+# assistant, AI search, and homework-mill hostnames to 0.0.0.0 / ::0.
+# Default-on for fresh installs (the build pipeline activates it into the
+# rootfs); the student can turn it off at any time. No enforcement,
+# no lock-in, no packet filtering, no TLS interception.
+#
+# Lists: /usr/share/periphery-focus/lists/<category>.txt (one domain per line)
+# State: /var/lib/periphery-focus/enabled (one category per line; missing = all on)
+#
+set -euo pipefail
+
+ROOT="/"
+HOSTS_OVERRIDE=""
+QUIET=0
+
+BEGIN_MARK="# >>> periphery-focus (managed — do not edit by hand) >>>"
+END_MARK="# <<< periphery-focus <<<"
+SELF_BIN="/usr/bin/periphery-focus"
+
+usage() {
+    cat <<'EOF'
+Usage: periphery-focus [--root DIR] [--hosts FILE] [--quiet] COMMAND [ARGS]
+
+Global options may come before or after the command.
+
+Commands:
+  status                Show enabled categories and block status
+  on [CATEGORY...]      Enable categories (default: all). Repairs the hosts block.
+  off [CATEGORY...]     Disable categories (default: all)
+  off --for DURATION    Disable everything for a while (30m, 2h), then restore
+  list [CATEGORY...]    Show categories and the domains they block
+
+Categories are files in /usr/share/periphery-focus/lists/*.txt.
+Blocking is exact hostnames in /etc/hosts (no subdomain wildcards).
+EOF
+}
+
+log() {
+    if [ "$QUIET" -eq 0 ]; then
+        echo "==> $*"
+    fi
+}
+
+err() { echo "ERROR: $*" >&2; }
+
+# Global options are stripped wherever they appear (before or after the
+# command); anything else is left in place for the command to interpret
+# (this is what lets 'off --for 30m' through untouched).
+ARGS=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --root)
+            if [ $# -lt 2 ]; then err "--root needs a directory"; exit 1; fi
+            ROOT="$2"; shift 2 ;;
+        --hosts)
+            if [ $# -lt 2 ]; then err "--hosts needs a file"; exit 1; fi
+            HOSTS_OVERRIDE="$2"; shift 2 ;;
+        --quiet | -q) QUIET=1; shift ;;
+        -h | --help) usage; exit 0 ;;
+        --) shift; while [ $# -gt 0 ]; do ARGS+=("$1"); shift; done ;;
+        *) ARGS+=("$1"); shift ;;
+    esac
+done
+if [ "${#ARGS[@]}" -gt 0 ]; then
+    set -- "${ARGS[@]}"
+else
+    set --
+fi
+
+CMD="${1:-status}"
+if [ $# -gt 0 ]; then shift; fi
+
+LISTS_DIR="$ROOT/usr/share/periphery-focus/lists"
+STATE_DIR="$ROOT/var/lib/periphery-focus"
+STATE_FILE="$STATE_DIR/enabled"
+SNAPSHOT_FILE="$STATE_DIR/rearm.state"
+TIMER_PID_FILE="$STATE_DIR/rearm.pid"
+LOCK_FILE="$STATE_DIR/.lock"
+if [ -n "$HOSTS_OVERRIDE" ]; then
+    HOSTS_FILE="$HOSTS_OVERRIDE"
+else
+    HOSTS_FILE="$ROOT/etc/hosts"
+fi
+
+# Live system (vs. build-time --root or test --hosts): scheduling allowed.
+is_live() {
+    [ "$ROOT" = "/" ] && [ -z "$HOSTS_OVERRIDE" ]
+}
+
+need_root() {
+    if is_live && [ "$(id -u)" -ne 0 ]; then
+        err "run with sudo."
+        exit 1
+    fi
+}
+
+ensure_state_dir() { mkdir -p "$STATE_DIR"; }
+
+lock() {
+    ensure_state_dir
+    exec 9>"$LOCK_FILE"
+    # flock is universal on Ubuntu; the fallback keeps --root/test runs
+    # working on hosts without it (single-user, low contention there).
+    if command -v flock >/dev/null 2>&1; then
+        flock 9
+    fi
+}
+
+all_categories() {
+    if [ ! -d "$LISTS_DIR" ]; then
+        err "lists directory missing: $LISTS_DIR"
+        exit 1
+    fi
+    local f found=0
+    for f in "$LISTS_DIR"/*.txt; do
+        if [ -f "$f" ]; then
+            basename "$f" .txt
+            found=1
+        fi
+    done
+    if [ "$found" -eq 0 ]; then
+        err "no category lists in $LISTS_DIR"
+        exit 1
+    fi
+}
+
+# Enabled categories, one per line. Missing state file = all on (install
+# default). Unknown entries (list removed) are silently dropped.
+read_enabled() {
+    if [ -f "$STATE_FILE" ]; then
+        comm -12 <(grep -v '^[[:space:]]*$' "$STATE_FILE" | sort -u) <(all_categories) || true
+    else
+        all_categories
+    fi
+}
+
+# Write stdin as the new enabled-category set (sorted, deduplicated).
+write_enabled() {
+    ensure_state_dir
+    sort -u >"$STATE_FILE.tmp"
+    mv "$STATE_FILE.tmp" "$STATE_FILE"
+}
+
+is_enabled() {
+    read_enabled | grep -qx "$1"
+}
+
+check_categories() {
+    local c
+    for c in "$@"; do
+        if [ ! -f "$LISTS_DIR/$c.txt" ]; then
+            err "unknown category: $c (see 'periphery-focus list')"
+            exit 1
+        fi
+    done
+}
+
+# Print normalized blocked hostnames for one category, one per line.
+# Skips blanks/comments; warns (stderr) and skips invalid lines.
+# Apex entries (exactly one dot) also cover their www. host.
+read_category_domains() {
+    local cat="$1" file line d
+    file="$LISTS_DIR/$cat.txt"
+    if [ ! -f "$file" ]; then
+        err "unknown category: $cat"
+        return 1
+    fi
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%$'\r'}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [ -z "$line" ] && continue
+        case "$line" in \#*) continue ;; esac
+        d="$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')"
+        case "$d" in
+            *[!a-z0-9.-]* | .* | *. | *..* | -* | *-)
+                err "skipping invalid entry '$line' in $cat.txt"
+                continue
+                ;;
+        esac
+        case "$d" in
+            www.* | *.*.*)
+                printf '%s\n' "$d"
+                ;;
+            *.*)
+                printf '%s\nwww.%s\n' "$d" "$d"
+                ;;
+            *)
+                err "skipping invalid entry '$line' in $cat.txt (not a domain)"
+                ;;
+        esac
+    done <"$file"
+}
+
+# All blocked hostnames across enabled categories, sorted unique.
+all_blocked_domains() {
+    local c
+    for c in $(read_enabled); do
+        read_category_domains "$c"
+    done | sort -u
+}
+
+# Rewrite the managed block in the hosts file from current state.
+# Idempotent: safe to run anytime; repairs hand-damaged blocks.
+regenerate() {
+    ensure_state_dir
+    local tmp domains d
+    tmp="$(mktemp)"
+    if [ -f "$HOSTS_FILE" ]; then
+        awk -v begin="$BEGIN_MARK" -v end="$END_MARK" '
+            $0 == begin { skip = 1; next }
+            $0 == end { skip = 0; next }
+            !skip { print }
+        ' "$HOSTS_FILE" >"$tmp"
+    else
+        printf '127.0.0.1\tlocalhost\n::1\t\tlocalhost\n' >"$tmp"
+    fi
+    domains="$(all_blocked_domains)"
+    if [ -n "$domains" ]; then
+        sed -i -e '$a\' "$tmp"
+        {
+            printf '%s\n' "$BEGIN_MARK"
+            while IFS= read -r d; do
+                [ -n "$d" ] || continue
+                printf '0.0.0.0\t%s\n::0\t%s\n' "$d" "$d"
+            done <<<"$domains"
+            printf '%s\n' "$END_MARK"
+        } >>"$tmp"
+    fi
+    if [ -f "$HOSTS_FILE" ]; then
+        chmod --reference="$HOSTS_FILE" "$tmp"
+    else
+        chmod 644 "$tmp"
+    fi
+    mv "$tmp" "$HOSTS_FILE"
+}
+
+cancel_rearm() {
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+        systemctl stop periphery-focus-rearm.timer periphery-focus-rearm.service 2>/dev/null || true
+    fi
+    if [ -f "$TIMER_PID_FILE" ]; then
+        kill "$(cat "$TIMER_PID_FILE")" 2>/dev/null || true
+        rm -f "$TIMER_PID_FILE"
+    fi
+    rm -f "$SNAPSHOT_FILE"
+}
+
+schedule_rearm() {
+    local dur="$1"
+    if command -v systemd-run >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+        systemd-run --quiet --on-active="$dur" --unit=periphery-focus-rearm \
+            --timer-property=AccuracySec=1m "$SELF_BIN" rearm
+        log "It will re-enable automatically in $dur (systemd timer)."
+    else
+        # shellcheck disable=SC2086
+        nohup sh -c "sleep '$dur'; exec '$SELF_BIN' rearm" >/dev/null 2>&1 &
+        printf '%s' "$!" >"$TIMER_PID_FILE"
+        disown 2>/dev/null || true
+        log "It will re-enable automatically in $dur."
+    fi
+}
+
+cmd_on() {
+    need_root
+    lock
+    if [ $# -eq 0 ]; then
+        all_categories | write_enabled
+    else
+        check_categories "$@"
+        { read_enabled; printf '%s\n' "$@"; } | write_enabled
+    fi
+    if is_live; then
+        cancel_rearm
+    fi
+    regenerate
+    log "Focus ON: $(read_enabled | tr '\n' ' ')"
+}
+
+cmd_off() {
+    need_root
+    lock
+    local dur="" args=()
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --for)
+                if [ $# -lt 2 ]; then
+                    err "--for needs a duration like 30m"
+                    exit 1
+                fi
+                dur="$2"
+                shift 2
+                ;;
+            *)
+                args+=("$1")
+                shift
+                ;;
+        esac
+    done
+    if [ -n "$dur" ]; then
+        if [ "${#args[@]}" -ne 0 ]; then
+            err "--for only supports a full off (no categories)"
+            exit 1
+        fi
+        if ! is_live; then
+            err "--for cannot be used with --root/--hosts"
+            exit 1
+        fi
+        if [ -z "$(read_enabled)" ]; then
+            err "Focus is already fully off; use 'periphery-focus on' to re-enable."
+            exit 1
+        fi
+        if ! [[ "$dur" =~ ^[0-9]+[smhd]$ ]]; then
+            err "bad duration '$dur' (use like 30m, 2h, 45s)"
+            exit 1
+        fi
+        cancel_rearm
+        read_enabled >"$SNAPSHOT_FILE"
+        : >"$STATE_FILE"
+        regenerate
+        log "Focus OFF for $dur."
+        schedule_rearm "$dur"
+        return 0
+    fi
+    if [ "${#args[@]}" -eq 0 ]; then
+        : >"$STATE_FILE"
+    else
+        check_categories "${args[@]}"
+        read_enabled | grep -vxF -f <(printf '%s\n' "${args[@]}") | write_enabled || true
+    fi
+    if is_live; then
+        cancel_rearm
+    fi
+    regenerate
+    local remaining
+    remaining="$(read_enabled | tr '\n' ' ')"
+    if [ -z "$remaining" ]; then
+        log "Focus OFF."
+    else
+        log "Focus partially on: $remaining"
+    fi
+}
+
+# Hidden command: scheduled by 'off --for' to restore the saved state.
+cmd_rearm() {
+    if ! is_live; then
+        err "rearm is only for the live system"
+        exit 1
+    fi
+    need_root
+    lock
+    if [ -f "$SNAPSHOT_FILE" ]; then
+        mv "$SNAPSHOT_FILE" "$STATE_FILE"
+    else
+        all_categories >"$STATE_FILE"
+    fi
+    rm -f "$TIMER_PID_FILE"
+    regenerate
+    log "Focus re-enabled: $(read_enabled | tr '\n' ' ')"
+}
+
+cmd_status() {
+    local enabled count hosts_state
+    enabled="$(read_enabled | tr '\n' ' ')"
+    count="$(all_blocked_domains 2>/dev/null | wc -l)"
+    if [ -f "$HOSTS_FILE" ] && grep -qF -- "$BEGIN_MARK" "$HOSTS_FILE"; then
+        hosts_state="active in $HOSTS_FILE"
+    else
+        hosts_state="missing from $HOSTS_FILE (run 'periphery-focus on' to repair)"
+    fi
+    echo "Periphery Focus"
+    echo "  Enabled categories: ${enabled:-none}"
+    echo "  Blocked hostnames:  $count"
+    echo "  Hosts block:        $hosts_state"
+    if [ -f "$SNAPSHOT_FILE" ] || [ -f "$TIMER_PID_FILE" ]; then
+        echo "  Timed off:          re-enable pending"
+    fi
+}
+
+cmd_list() {
+    local cats c st
+    if [ $# -eq 0 ]; then
+        cats="$(all_categories)"
+    else
+        check_categories "$@"
+        cats="$(printf '%s\n' "$@")"
+    fi
+    for c in $cats; do
+        if is_enabled "$c"; then st="on"; else st="off"; fi
+        printf '[%s] %s\n' "$st" "$c"
+        read_category_domains "$c" | sed 's/^/    /'
+    done
+}
+
+case "$CMD" in
+    on) cmd_on "$@" ;;
+    off) cmd_off "$@" ;;
+    status) cmd_status ;;
+    list) cmd_list "$@" ;;
+    rearm) cmd_rearm ;;
+    help) usage ;;
+    *)
+        err "unknown command: $CMD"
+        usage >&2
+        exit 1
+        ;;
+esac
