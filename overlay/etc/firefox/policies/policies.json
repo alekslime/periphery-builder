@@ -1,0 +1,13 @@
+{
+    "policies": {
+        "SearchEngines": {
+            "Default": "DuckDuckGo"
+        },
+        "Preferences": {
+            "browser.ml.chat.enabled": {
+                "Value": false,
+                "Status": "locked"
+            }
+        }
+    }
+}
