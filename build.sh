@@ -30,16 +30,22 @@ mkdir -p "$ISO_STAGING/boot/grub"
 echo "==> Copying fresh GRUB module trees from rootfs"
 cp -r "$ROOTFS/usr/lib/grub/x86_64-efi" "$ISO_STAGING/boot/grub/"
 cp -r "$ROOTFS/usr/lib/grub/i386-pc" "$ISO_STAGING/boot/grub/"
+# GRUB backdrop (optional: GRUB falls back to the solid-color menu if missing)
+if [ -f "$ROOTFS/usr/share/backgrounds/periphery/periphery-grub.jpg" ]; then
+    cp "$ROOTFS/usr/share/backgrounds/periphery/periphery-grub.jpg" "$ISO_STAGING/boot/grub/"
+fi
 echo "==> Writing grub.cfg (Periphery branding: dark green bg, gold highlight)"
 cat > "$ISO_STAGING/boot/grub/grub.cfg" << 'GRUBCFG'
 set default=0
 set timeout=5
 insmod all_video
 insmod gfxterm
+insmod jpeg
 terminal_output gfxterm
 
 # Periphery OS palette: #17231F background, #D6A85D gold highlight, #F1EEE4 text
 background_color 23,35,31
+background_image /boot/grub/periphery-grub.jpg
 set color_normal=white/black
 set menu_color_normal=white/black
 set menu_color_highlight=black/yellow
