@@ -8,3 +8,5 @@ ID_LIKE="ubuntu debian"
 BUG_REPORT_URL="https://github.com/alekslime/periphery-builder/issues"
 UBUNTU_CODENAME=resolute
 LOGO=periphery-logo
+HOME_URL="https://github.com/alekslime/periphery-builder"
+SUPPORT_URL="https://github.com/alekslime/periphery-builder/issues"
