@@ -1,0 +1,9 @@
+[SddmGreeterTheme]
+Name=Periphery
+Description=Periphery OS login theme
+Author=Periphery OS
+License=CC0-1.0
+Type=sddm-theme
+Version=1.0
+MainScript=Main.qml
+ConfigFile=theme.conf
