@@ -1,0 +1,11 @@
+# Periphery Focus — AI-first search engines.
+# (Google AI Overviews can't be DNS-blocked without breaking Google
+# itself, so the Firefox default-search policy handles that side —
+# see overlay/etc/firefox/policies/policies.json.)
+
+perplexity.ai
+you.com
+phind.com
+andisearch.com
+komo.ai
+exa.ai
