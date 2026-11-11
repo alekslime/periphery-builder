@@ -47,6 +47,16 @@ QTreeWidget {{
 QTreeWidget::item {{
     padding: 4px 2px;
 }}
+QTreeWidget::item:hover {{
+    background-color: rgba(214,168,93,0.25);
+}}
+QTreeWidget::item:selected {{
+    background-color: {GOLD};
+    color: #17231F;
+}}
+QTreeWidget::branch:selected {{
+    background-color: {GOLD};
+}}
 QPushButton#installBtn {{
     background-color: {GOLD};
     color: {DARK};
