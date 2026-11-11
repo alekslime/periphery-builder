@@ -35,6 +35,14 @@ sudo chmod 755 "$ROOTFS/usr/bin/periphery-focus"
 sudo bash "$SCRIPT_DIR/overlay/usr/bin/periphery-focus" --root "$ROOTFS" on --quiet
 
 echo
+echo "==> Step 1c/4: Selecting Periphery Calamares branding"
+sudo sed -i 's/^[[:space:]]*branding:.*/branding: periphery/' "$ROOTFS/etc/calamares/settings.conf"
+if ! sudo grep -q '^branding: periphery' "$ROOTFS/etc/calamares/settings.conf"; then
+    echo "ERROR: failed to select Periphery branding in $ROOTFS/etc/calamares/settings.conf" >&2
+    exit 1
+fi
+
+echo
 echo "==> Step 2/4: Rebuilding squashfs ($COMP)"
 sudo rm -f "$ISO_STAGING/casper/filesystem.squashfs"
 sudo mksquashfs "$ROOTFS" "$ISO_STAGING/casper/filesystem.squashfs" -comp "$COMP" -noappend
