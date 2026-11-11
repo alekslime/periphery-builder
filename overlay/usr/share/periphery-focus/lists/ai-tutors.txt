@@ -1,0 +1,10 @@
+# Periphery Focus — homework-answer mills and AI tutor products.
+# Deliberately NOT blocked: docs, forums, package registries, video
+# tutorials, flashcards, and reference sites — research, not answer
+# vending. See FOCUS.md for the rationale.
+
+chegg.com
+coursehero.com
+brainly.com
+studocu.com
+numerade.com
