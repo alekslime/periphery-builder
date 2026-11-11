@@ -29,6 +29,12 @@ echo "==> Step 1/4: Applying overlay"
 sudo ROOTFS="$ROOTFS" "$SCRIPT_DIR/apply-overlay.sh"
 
 echo
+echo "==> Step 1b/4: Activating Periphery Focus defaults (AI-free by default)"
+# chmod first: guarantees +x even if the checkout lost the git exec bit.
+sudo chmod 755 "$ROOTFS/usr/bin/periphery-focus"
+sudo bash "$SCRIPT_DIR/overlay/usr/bin/periphery-focus" --root "$ROOTFS" on --quiet
+
+echo
 echo "==> Step 2/4: Rebuilding squashfs ($COMP)"
 sudo rm -f "$ISO_STAGING/casper/filesystem.squashfs"
 sudo mksquashfs "$ROOTFS" "$ISO_STAGING/casper/filesystem.squashfs" -comp "$COMP" -noappend
