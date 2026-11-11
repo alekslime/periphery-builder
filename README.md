@@ -43,6 +43,11 @@ below) with the packages listed in **Rootfs dependencies**.
   each package name individually checked against real sources rather than
   assumed. See `WELCOME_APP.md` for the full behavior spec and verification
   notes.
+- **Periphery Focus** — AI-free-by-default focus filter (`periphery-focus`
+  + category blocklists + Firefox defaults). Fresh installs boot with AI
+  chatbots, code assistants, AI search, and homework mills blocked; the
+  student can disable it per category or temporarily at any time. See
+  `FOCUS.md`.
 - **Overlay system** (`apply-overlay.sh` + `overlay/`) — every rootfs
   customization above is tracked as real files in this repo, applied
   reproducibly, instead of living only as manual edits inside a live shell.
@@ -61,10 +66,14 @@ periphery-builder/
 │   ├── usr/share/wallpapers/Periphery/          # KDE wallpaper package
 │   ├── usr/share/plymouth/themes/periphery/     # boot splash
 │   ├── usr/share/sddm/themes/ubuntu-budgie-login/theme.conf
+│   ├── usr/bin/periphery-focus
+│   ├── usr/share/periphery-focus/lists/             # Focus blocklists (4 categories)
+│   ├── etc/firefox/policies/policies.json
 │   ├── etc/os-release
 │   └── etc/xdg/autostart/periphery-welcome-autostart.desktop
 ├── BRANDING.md          # branding asset details, install steps, verified-vs-best-effort status
 ├── WELCOME_APP.md       # Welcome app architecture, install methods, boot-test checklist
+├── FOCUS.md             # Focus filter design, commands, boot-test checklist, limitations
 └── HANDOFF.md           # phase-by-phase build log: what broke, root causes, fixes
 ```
 
@@ -170,6 +179,26 @@ no disk) is enough. Verifying the autostart-after-real-install behavior
 specifically does require a full Calamares install onto a fresh disk, since
 that's the one path a live session can't exercise. See `WELCOME_APP.md` for
 the full checklist and the per-tool package verification notes.
+
+## Periphery Focus (AI-free by default)
+
+`periphery-focus` manages a marked block in `/etc/hosts` that resolves AI
+chatbot, AI code-assistant, AI-search, and homework-mill hostnames to
+`0.0.0.0`, across 4 categories (`chatbots`, `code-assistants`, `ai-search`,
+`ai-tutors`). Fresh installs boot with all categories blocked —
+`full-build.sh` activates it into the rootfs — and the student can relax it
+at any time:
+
+```bash
+periphery-focus status
+sudo periphery-focus off ai-tutors  # allow one category
+sudo periphery-focus off --for 30m  # timed break, auto-restores
+```
+
+A Firefox policy (`/etc/firefox/policies/policies.json`) complements it by
+defaulting search to DuckDuckGo and locking off the AI chatbot sidebar.
+See `FOCUS.md` for the full design, boot-test checklist, and honest
+limitations (exact-hostname matching, bypassable by design).
 
 ## Key decisions and why
 
