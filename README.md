@@ -35,8 +35,8 @@ below) with the packages listed in **Rootfs dependencies**.
   launcher,
   fixed to run with proper privilege escalation via `pkexec`
   (`overlay/usr/bin/calamares-launch-normal`).
-- **Full visual identity** — GRUB boot menu, Plymouth boot splash, SDDM login
-  background, Plasma desktop wallpaper, and app/distributor icons, all pulled
+- **Full visual identity** — GRUB boot menu, Plymouth boot splash, a custom SDDM login theme,
+  Plasma wallpaper + color schemes, and app/distributor icons, all pulled
   from one source photo + a two-color logo mark. See `BRANDING.md`.
 - **Periphery Welcome** — a first-boot app (EndeavourOS-style) that lets
   students check off tools for their field and installs them via
@@ -68,11 +68,14 @@ periphery-builder/
 │   ├── usr/share/periphery-welcome/            # Welcome app: code, assets, tools.json
 │   ├── usr/share/wallpapers/Periphery/          # KDE wallpaper package
 │   ├── usr/share/plymouth/themes/periphery/     # boot splash
-│   ├── usr/share/sddm/themes/ubuntu-budgie-login/theme.conf
 │   ├── usr/bin/periphery-focus
 │   ├── usr/share/periphery-focus/lists/             # Focus blocklists (4 categories)
+│   ├── usr/share/sddm/themes/periphery/              # login theme (QML)
+│   ├── usr/share/color-schemes/Periphery.colors       # Plasma colors
+│   ├── usr/share/konsole/periphery.colorscheme        # terminal colors
 │   ├── etc/calamares/branding/periphery/            # installer theme (desc, slideshow, art)
 │   ├── etc/firefox/policies/policies.json
+│   ├── etc/sddm.conf.d/60-periphery.conf
 │   ├── etc/os-release
 │   └── etc/xdg/autostart/periphery-welcome-autostart.desktop
 ├── BRANDING.md          # branding asset details, install steps, verified-vs-best-effort status
