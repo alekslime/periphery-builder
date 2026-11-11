@@ -131,7 +131,8 @@ apt install -y \
   grub-efi-amd64-bin grub-efi-amd64-signed shim-signed grub-pc-bin grub-common \
   xorriso mtools \
   plymouth-label \
-  python3-pyqt5
+  python3-pyqt5 \
+  calamares calamares-settings-kubuntu
 ```
 
 - `linux-image-generic` provides the kernel (`/boot/vmlinuz-<ver>`,
@@ -143,6 +144,8 @@ apt install -y \
   rendering; without it, `update-initramfs` warns about a missing
   `label-pango.so` plugin.
 - `python3-pyqt5` is required for the Periphery Welcome app.
+- `calamares` + `calamares-settings-kubuntu` provide the graphical installer
+  (verified present on resolute: Calamares 3.3.14, settings 1:26.04.12).
 
 After installing packages that affect early boot (kernel, Plymouth theme,
 casper), regenerate the initramfs — `full-build.sh` does this automatically
