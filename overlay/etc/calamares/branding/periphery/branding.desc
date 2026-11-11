@@ -1,0 +1,51 @@
+# Periphery OS — Calamares branding.
+#
+# Activated by full-build.sh (step 1c), which sets `branding: periphery`
+# in the rootfs's /etc/calamares/settings.conf. Only keys documented in
+# the upstream default branding.desc are used here, so this works on any
+# Calamares 3.x without matching a specific release.
+#
+# slideshowAPI is deliberately 1 (the upstream default): it is supported
+# everywhere, while API 2's availability varies by release. show.qml also
+# defines the onActivate/onLeave hooks, so it keeps working if the API
+# is ever bumped to 2.
+---
+componentName:  periphery
+
+welcomeStyleCalamares:   false
+welcomeExpandingLogo:   true
+
+windowExpanding:    normal
+windowSize: 900px,580px
+windowPlacement: center
+
+sidebar: widget
+navigation: widget
+
+strings:
+    productName:         "Periphery OS"
+    shortProductName:    "Periphery"
+    version:             "v1"
+    shortVersion:        "v1"
+    versionedName:       "Periphery OS v1"
+    shortVersionedName:  "Periphery v1"
+    bootloaderEntryName: "Periphery OS"
+    productUrl:          "https://github.com/alekslime/periphery-builder"
+    supportUrl:          "https://github.com/alekslime/periphery-builder/issues"
+    knownIssuesUrl:      ""
+    releaseNotesUrl:     ""
+    donateUrl:           ""
+
+images:
+    productIcon:         "logo.png"
+    productLogo:         "logo.png"
+    productWelcome:      "banner.png"
+
+style:
+   SidebarBackground:        "#28443A"
+   SidebarText:              "#F1EEE4"
+   SidebarTextCurrent:       "#17231F"
+   SidebarBackgroundCurrent: "#D6A85D"
+
+slideshow:               "show.qml"
+slideshowAPI: 1
