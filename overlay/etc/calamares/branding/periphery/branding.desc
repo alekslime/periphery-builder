@@ -32,9 +32,6 @@ strings:
     bootloaderEntryName: "Periphery OS"
     productUrl:          "https://github.com/alekslime/periphery-builder"
     supportUrl:          "https://github.com/alekslime/periphery-builder/issues"
-    knownIssuesUrl:      ""
-    releaseNotesUrl:     ""
-    donateUrl:           ""
 
 images:
     productIcon:         "logo.png"
